@@ -5,7 +5,7 @@ project("mt-dlp")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(mt-dlp "src/main.cpp")
+add_executable(mt-dlp "src/main.cpp" "src/downloader.cpp")
 
 # curl
 find_package(CURL REQUIRED)

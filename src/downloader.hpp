@@ -91,31 +91,10 @@ public:
   ~Downloader() = default;
   NO_COPY_MOVE(Downloader);
 
-  static inline std::string get_filename(const std::string& url) {
-    const std::string name{ url.substr(url.find_last_of('/') + 1) };
-    return name.empty() ? "download.bin" : name.substr(0, name.find('?'));
-  }
+  static std::string get_filename(const std::string& url);
+  static std::string format_size(double bytes);
 
-  static inline std::string format_size(double bytes) {
-    const char* const suffixes[4]{ "B", "KiB", "MiB", "GiB" };
-    size_t s{ 0 };
-    while (bytes >= 1024.0 && s < 3) { bytes /= 1024.0; ++s; }
-
-    return std::format("{:.2f} {}", bytes, suffixes[s]);
-  }
-
-  static inline std::string format_time(int64_t sec) {
-    if (sec < 0 || sec > 360000) return "--:--:--";
-
-    const int64_t h{ sec / 3600 };
-    const int64_t m{ (sec % 3600) / 60 };
-    const int64_t s{ sec % 60 };
-
-    if (h > 0) return std::format("{}h{}m{}s", h, m, s);
-    else if (m > 0) return std::format("{}m{}s", m, s);
-
-    return std::format("{}s", s);
-  }
+  static std::string format_time(int64_t sec);
 
   static FileInfo file_info(const std::string& url) {
     FileInfo info{ .resolved_url = url };
@@ -163,7 +142,6 @@ public:
     curl_off_t size_dl{};
     if (curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &size_dl) == CURLE_OK)
       if (size_dl > 0) info.size = static_cast<int64_t>(size_dl);
-
 
     char* const effective_url{ nullptr };
     if (curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url) == CURLE_OK && effective_url)
