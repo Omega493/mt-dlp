@@ -18,14 +18,14 @@
 #ifndef DOWNLOADER_HPP
 #define DOWNLOADER_HPP
 
+#include <algorithm>
+#include <chrono>
+#include <format>  // A rather heavy header only to be used for two trivial functions
+#include <mutex>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <chrono>
-#include <mutex>
-#include <stdexcept>
-#include <algorithm>
-#include <format> // A rather heavy header only to be used for two trivial functions
 // <charconv> may also be used
 
 #include <curl/curl.h>
