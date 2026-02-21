@@ -104,18 +104,21 @@ Whether you're looking to refactor our "monolithic" main file, optimize thread l
 ### Control Flow & Syntax
 
 * **Ignored Return Values:** If you call a function with a return value but ignore it, or if the function returns `void`, you must manually cast the call to `void`.
-  * *Example:* `(void)printf("Hello");`
-* **Braces in One-Liners:** Do **NOT** use curly braces for single-line `if`, `else`, `for`, or `while` statements.
-  * **Inline:** If the statement is short, place it on the same line.
-  * **Indent:** If it is long, indent it on the next line.
   * *Example:*
     ```cpp
-    if (x == 2 || y == 4 || z != 10 && x == 1) // this line is long enough, do not inline
-      (void)foo();                             // indented, but w/o curly braces
-    else if (void)bar();                       // inlined
-    else {                                     // this else block is long, use curly braces
-      (void)faz();
-      (void)foo();
+    void foo() {
+    // ...
+    }
+
+    bool faz() {
+    // ...
+    }
+
+    void bar() {
+    // ...
+    (void)foo();
+    (void)faz();
+    // ...
     }
     ```
 
