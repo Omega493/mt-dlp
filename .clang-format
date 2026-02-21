@@ -7,30 +7,3 @@ BasedOnStyle: Google
 IndentWidth: 2
 TabWidth: 2
 UseTab: Never
-AccessModifierOffset: -2
-
-# Line Limits
-ColumnLimit: 100
-
-# Braces & One-Liners
-AllowShortBlocksOnASingleLine: Always
-AllowShortIfStatementsOnASingleLine: Always
-AllowShortFunctionsOnASingleLine: All
-BreakBeforeBraces: Attach
-
-# Spacing for Uniform Initialization
-Cpp11BracedListStyle: false
-
-# Pointer Alignment
-PointerAlignment: Left
-
-# Includes
-SortIncludes: true
-IncludeBlocks: Regroup
-
-# Miscellaneous
-# Keep arguments distinct
-BinPackArguments: false
-BinPackParameters: false
-# Ensure 'template <typename T>'' has a space
-SpaceAfterTemplateKeyword: true
