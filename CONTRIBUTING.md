@@ -71,6 +71,7 @@ Whether you're looking to refactor our "monolithic" main file, optimize thread l
     - We appreciate signed commits (commits signed with a PGP signature). Please refer to [this video](https://www.youtube.com/watch?v=xj9OiJL56pM) on how to set a PGP signature on your device. (Disclaimer: Neither am I the creator of this video, nor am I related to them - this video serves only as a educational guide provided here.)
 4.  **Push to the Branch**: `git push origin feature/AmazingFeature`.
 5.  **Open a Pull Request**: Describe your changes clearly.
+6. If you need file links for debugging various features, please check out `tests/tests.md`. It curates a bunch of "speedtest" links.
 
 ### Restricted Files (Vendored Code)
 * **`include/selena/`**: Files in this directory belong to the standalone [Selena Library](https://github.com/Omega493/selena).
