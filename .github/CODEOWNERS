@@ -1,4 +1,9 @@
-.github @omega493
-CODEOWNERS @omega493
+.github                @omega493
+CODEOWNERS             @omega493
 
-/include/selena/ @omega493
+/include/selena/       @omega493
+
+/tests/tests.md        @omega493
+SECURITY.md            @omega493
+CODE_OF_CONDUCT.md     @omega493
+CONTRIBUTING.md        @omega493
