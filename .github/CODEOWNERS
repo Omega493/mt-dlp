@@ -7,3 +7,6 @@ CODEOWNERS             @omega493
 SECURITY.md            @omega493
 CODE_OF_CONDUCT.md     @omega493
 CONTRIBUTING.md        @omega493
+LICENSE                @omega493
+.editorconfig          @omega493
+.gitignore             @omega493

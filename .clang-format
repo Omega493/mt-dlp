@@ -1,9 +1,0 @@
-# mt-dlp .clang-format configuration
-Language: Cpp
-Standard: c++20
-BasedOnStyle: Google
-
-# Indentation
-IndentWidth: 2
-TabWidth: 2
-UseTab: Never

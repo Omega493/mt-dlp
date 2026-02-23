@@ -27,6 +27,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "selena/string_utils.hpp"
+
 namespace selena {
 /*
  * Uses <regex> to match a given input string to a given pattern.
@@ -59,31 +61,53 @@ namespace selena {
  * @return true/false
  */
 [[nodiscard]] inline bool is_valid_url(const std::string& url) {
-  if (url.empty()) return false;
-
-  // URL must be a http or https. Block anything that doesn't belong with 'h'.
-  if (const char c{ static_cast<char>(std::tolower(static_cast<unsigned char>(url[0]))) }; c != 'h')
+  if (url.empty()) {
     return false;
+  }
+
+  if (!selena::iequal(static_cast<unsigned char>(url[0]), 'h')) { // http/https restriction
+    return false;
+  }
 
   const size_t sep_pos{ url.find("://") };
-  if (sep_pos == std::string::npos) return false;
-  if (sep_pos != 4 && sep_pos != 5) return false; // http/https restriction
+  if (sep_pos == std::string::npos) {
+    return false;
+  }
 
-  const char* const base_scheme{ "http" };
-  for (size_t i{ 1 }; i < 4; ++i)
-    if (std::tolower(static_cast<unsigned char>(url[i])) != base_scheme[i])
+  if (sep_pos != 4 && sep_pos != 5) { // http/https restriction
+    return false;
+  }
+
+  {
+    // Artificial scoping to prevent pollution
+    // Though this is not absolutely required
+    const char* const BASE_SCHEME{ "http" };
+    for (size_t i{ 1 }; i < 4; ++i) { // Start from '1' bcs 'h' is alrd checked
+      if (!selena::iequal(static_cast<unsigned char>(url[i]), BASE_SCHEME[i])) {
+        return false;
+      }
+  }
+  }
+
+  if (sep_pos == 5) {
+    if (!selena::iequal(static_cast<unsigned char>(url[4]), 's')) {
       return false;
+    }
+  }
 
-  if (sep_pos == 5)
-    if (std::tolower(static_cast<unsigned char>(url[4])) != 's')
-      return false;
+  if ((sep_pos + 3) >= url.length()) {
+    return false; // + 3 because "://"
+  }
 
-  if ((sep_pos + 3) >= url.length()) return false; // + 3 because "://"
-
-  for (size_t i{ sep_pos + 3 }; i < url.length(); ++i) { // + 3 because "://"
+  for (size_t i{ sep_pos + 3 }; i < url.length(); ++i) { // +3 because "://"
     const unsigned char c{ static_cast<unsigned char>(url[i]) };
-    if (c == ';' || c == '|' || c == '`' || c == '$') return false;
-    if (!std::isgraph(c)) return false; // Blocks anything that doesn't have a graphical representation
+    if (c == ';' || c == '|' || c == '`' || c == '$') {
+      return false;
+    }
+
+    if (!std::isgraph(c)) {
+      return false; // Blocks anything that doesn't have a graphical representation
+    }
   }
 
   return true;
@@ -95,48 +119,12 @@ namespace selena {
  * @return std::string A string object containing the returned value
  */
 inline std::string getenv(const char* const var_name) {
-  if (!var_name) return "";
+  if (!var_name) {
+    return "";
+  }
+
   const char* const var{ std::getenv(var_name) };
   return var ? var : "";
-}
-
-/*
- * Does a case-insensitive comparison of two characters.
- * Especially useful in algorithms like std::search.
- * @param c1 An unsigned char
- * @param c2 Another unsigned char
- * @returns true/false
- */
-[[nodiscard]] inline bool iequal(const unsigned char c1, const unsigned char c2) {
-  return std::tolower(c1) == std::tolower(c2);
-}
-
-/*
- * Case insensitive comparison of two strings.
- * @param str1 A string object. Internally, this is std::string_view
- * @param str2 Another string obj, this is also std::string_view
- * @returns true/false
- */
-[[nodiscard]] inline bool iequal_str(const std::string_view str1, const std::string_view str2) {
-  if (str1.size() != str2.size()) return false;
-  return std::equal(str1.begin(), str1.end(), str2.begin(), selena::iequal);
-}
-
-/*
- * Checks if a target string is a part of a given text.
- * Makes use of selena::iequal.
- * @param text The base text
- * @param target The text to search for
- * @returns true/false
- */
-[[nodiscard]] inline bool icontains(const std::string_view text, const std::string_view target) {
-  const std::string_view::const_iterator it{ std::search(
-      text.begin(), text.end(),
-      target.begin(), target.end(),
-      selena::iequal
-  ) };
-
-  return it != text.end();
 }
 
 /*
@@ -151,9 +139,13 @@ inline std::string getenv(const char* const var_name) {
  * @returns int The value returned from the system call
  */
 [[nodiscard]] inline int system(const char* const cmd) {
-  if (!cmd) return 1;
+  if (!cmd) {
+    return -1;
+  }
 #ifdef _WIN32
-  if (!std::strcmp(cmd, "clear")) return std::system("cls");
+  if (!std::strcmp(cmd, "clear")) {
+    return std::system("cls");
+  }
 #endif // _WIN32
   return std::system(cmd);
 }
@@ -170,12 +162,16 @@ inline std::string getenv(const char* const var_name) {
  * @returns int The value returned from the system call
  */
 [[nodiscard]] inline int system_suppressed(const char* const cmd) {
-  if (!cmd) return 1;
+  if (!cmd) {
+    return 1;
+  }
+  if (!std::strcmp(cmd, "clear")) {
 #ifdef _WIN32
-  if (!std::strcmp(cmd, "clear")) return std::system("cls");
+    return std::system("cls");
 #else // ^^^ _WIN32 || !_WIN32 vvv
-  if (!std::strcmp(cmd, "clear")) return std::system("clear");
+    return std::system("clear");
 #endif // _WIN32
+  }
 
 #ifdef _WIN32
   const std::string suppressed_cmd{ cmd + std::string{" > NUL 2>&1"} };
