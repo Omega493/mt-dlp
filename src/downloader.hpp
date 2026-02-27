@@ -21,12 +21,12 @@
 #include <algorithm>
 #include <chrono>
 #include <format>  // A rather heavy header only to be used for two trivial functions
+// <charconv> may also be used
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
-// <charconv> may also be used
 
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -86,19 +86,14 @@ public:
   ~Downloader() = default;
   NO_COPY_MOVE(Downloader);
 
-  static std::string get_filename(const std::string& url);
-  static std::string format_size(double bytes);
+  static std::string get_filename(const std::string&);
+  static std::string format_size(double);
 
-  static std::string format_time(int64_t sec);
+  static std::string format_time(int64_t);
 
-  static FileInfo file_info(const std::string& url);
+  static FileInfo file_info(const std::string&);
 
-  int download(const std::string& url,
-               DownloadState& state,
-               std::FILE* const fp,
-               std::mutex& fp_mtx,
-               const int64_t range_start = -1,
-               const int64_t range_end = -1);
+  int download(const std::string&, DownloadState&, std::FILE* const, std::mutex&, const int64_t range_start = -1, const int64_t range_end = -1);
 
 private:
   struct CurlGlobal {
@@ -115,12 +110,13 @@ private:
 
   struct Context {
     DownloadState* state;
-
+    std::mutex* fp_mtx;
+    
     // Buffer to reduce disk IO
     std::vector<char> buffer;
 
     std::FILE* fp{ nullptr };
-    std::mutex* fp_mtx;
+
     int64_t range_start_offset;
 
     /*
@@ -140,17 +136,14 @@ private:
 
     static constexpr size_t BUFFER_THRESHOLD{ 4 * 1024 * 1024 };  // 4 MiB
 
-    Context(DownloadState* const st,
-            std::FILE* const f,
-            std::mutex* const m,
-            const int64_t start,
-            const int64_t limit)
+    Context(DownloadState* const st, std::FILE* const f, std::mutex* const m, const int64_t start, const int64_t limit)
         : state{ st },
           fp{ f },
           fp_mtx{ m },
           range_start_offset{ ((start < 0) ? 0 : start) },
           limit_bytes{ limit },
-          last_time{ std::chrono::steady_clock::now() } {
+          last_time{ std::chrono::steady_clock::now() }
+    {
       buffer.reserve(BUFFER_THRESHOLD + 16384);
     }
 
@@ -158,23 +151,13 @@ private:
     NO_COPY_MOVE(Context);
   };
 
-  static size_t header_callback(const char* const buffer,
-                                const size_t size,
-                                const size_t nitems,
-                                void* const userdata);
+  static size_t header_callback(const char* const, const size_t, const size_t, void* const);
 
   // 3/5 of the arguments are unused. They are still in the function definition because curl
   // function ptr :staregePepe:
-  static int progress_callback(void* const clientp,
-                               const curl_off_t,
-                               const curl_off_t dlnow,
-                               const curl_off_t,
-                               const curl_off_t);
+  static int progress_callback(void* const, const curl_off_t, const curl_off_t, const curl_off_t, const curl_off_t);
 
-  static size_t write_callback(const void* const contents,
-                               const size_t size,
-                               const size_t nmemb,
-                               void* const userp);
+  static size_t write_callback(const void* const, const size_t, const size_t, void* const);
 };
 
 #endif  // DOWNLOADER_HPP
