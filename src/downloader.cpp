@@ -117,13 +117,11 @@ FileInfo Downloader::file_info(const std::string& url) {
 }
 
 int Downloader::download(const std::string& url, DownloadState& state, std::FILE* const fp, std::mutex& fp_mtx,
+                         ConnectionPool* pool,
                          const int64_t range_start,
                          const int64_t range_end)
 {
-  CURL* const curl{ curl_easy_init() };
-  if (!curl) {
-    throw std::runtime_error("Failed to create curl handle");
-  }
+  CURL* const curl{ pool->acquire() };
 
   const int64_t expected_size{ (range_end > 0 && range_start >= 0) ? (range_end - range_start + 1) : -1 };
   Context ctx{ &state, fp, &fp_mtx, range_start, expected_size };
@@ -155,7 +153,7 @@ int Downloader::download(const std::string& url, DownloadState& state, std::FILE
         state.err_msg = "Configuration error: " + opt.desc;
         state.is_done = true;
       }
-      (void)curl_easy_cleanup(curl);
+      pool->release(curl);
       return opt.code;
     }
   }
@@ -172,11 +170,11 @@ int Downloader::download(const std::string& url, DownloadState& state, std::FILE
       state.is_done = true;
       state.err_msg = "Server throttled connection (HTTP " + std::to_string(res_code) + ")";
     }
-    (void)curl_easy_cleanup(curl);
+    pool->release(curl);
     return -1;
   }
 
-  (void)curl_easy_cleanup(curl);
+  pool->release(curl);
 
   // If we manually aborted because we finished, treat it as ok
   if ((res == CURLE_WRITE_ERROR) && (ctx.limit_bytes > 0) && (ctx.bytes_processed >= ctx.limit_bytes)) {

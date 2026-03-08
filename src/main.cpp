@@ -31,6 +31,7 @@
 #include "selena/base.hpp"
 #include "selena/utils.hpp"
 #include "src/downloader.hpp"
+#include "src/connection_pool.hpp"
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
@@ -148,6 +149,10 @@ int main(int argc, char* argv[]) {
     const int64_t chunk_size{ file_info.size / curr_threads };
     std::vector<std::unique_ptr<DownloadState>> worker_states{};
     std::mutex file_mtx{};
+    
+    // Calculate number of connections to use (approximately half the number of threads)
+    const size_t num_connections{ (curr_threads + 1) / 2 };
+    ConnectionPool connection_pool{ num_connections };
 
     for (uint32_t i{ 0 }; i < curr_threads; ++i) {
       worker_states.push_back(std::make_unique<DownloadState>());
@@ -155,7 +160,7 @@ int main(int argc, char* argv[]) {
       const int64_t end{ (i == curr_threads - 1) ? file_info.size - 1 : (start + chunk_size - 1) };
       workers.emplace_back([&, i, start, end] {
         Downloader client{};
-        client.download(file_info.resolved_url, *worker_states[i], fp, file_mtx, start, end);
+        client.download(file_info.resolved_url, *worker_states[i], fp, file_mtx, &connection_pool, start, end);
       });
       std::this_thread::sleep_for(std::chrono::milliseconds{ 50 }); // Small delay to not flood the source server
     }
