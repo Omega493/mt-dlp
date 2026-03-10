@@ -41,6 +41,7 @@
 // Copy/move is blocked when this is used.
 #include "selena/base.hpp"
 #include "selena/utils.hpp"
+#include "src/connection_pool.hpp"
 
 struct FileInfo {
   std::string resolved_url{};
@@ -93,7 +94,7 @@ public:
 
   static FileInfo file_info(const std::string&);
 
-  int download(const std::string&, DownloadState&, std::FILE* const, std::mutex&, const int64_t range_start = -1, const int64_t range_end = -1);
+  int download(const std::string&, DownloadState&, std::FILE* const, std::mutex&, ConnectionPool* pool, const int64_t range_start = -1, const int64_t range_end = -1);
 
 private:
   struct CurlGlobal {
