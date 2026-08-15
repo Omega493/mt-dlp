@@ -30,6 +30,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
 
     steps:
     - name: Checkout repository
@@ -37,27 +39,11 @@ jobs:
 
     - name: Install System Dependencies
       run: |
-        sudo apt update
-        sudo apt install -y libcurl4-openssl-dev ninja-build clang lld
-
-    - name: Cache FTXUI
-      id: cache-ftxui
-      uses: actions/cache@v4
-      with:
-        path: ./ftxui-dist
-        key: ${{ runner.os }}-ftxui-v1
-
-    - name: Build and Install FTXUI
-      if: steps.cache-ftxui.outputs.cache-hit != 'true'
-      run: |
-        git clone --depth 1 https://github.com/ArthurSonzogni/FTXUI.git
-        cd FTXUI
-        cmake -B build -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/ftxui-dist -DFTXUI_BUILD_EXAMPLES=OFF -DFTXUI_BUILD_DOCS=OFF
-        cmake --build build --target install
+        dnf install make cmake ninja-build gcc g++ libcurl-devel ftxui-devel clang lld git -y
 
     - name: Configure with Preset
       run: |
-        cmake --preset=linux-x64-clang-release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/ftxui-dist
+        cmake --preset=linux-x64-github-actions
 
     - name: Build with Preset
-      run: cmake --build --preset=linux-x64-clang-release
+      run: cmake --build --preset=linux-x64-github-actions
