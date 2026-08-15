@@ -220,7 +220,7 @@ int main(const int argc, const char* const* const argv) {
 
     if (info.size_ > 0 && num_chunks > 1) {
       for (std::uint32_t i{}; i < num_chunks; ++i) {
-        const std::int64_t start{ static_cast<std::int64_t>(i) * mt_dlp::downloader::kChunkSplitSize };
+        const std::int64_t start{ static_cast<std::int64_t>(i * mt_dlp::downloader::kChunkSplitSize) };
         const std::int64_t end{ static_cast<std::int64_t>((i == num_chunks - 1) ? (info.size_ - 1) : (start + mt_dlp::downloader::kChunkSplitSize - 1)) };
 
         dl_client.enqueue_chunk(start, end);
