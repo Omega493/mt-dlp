@@ -37,8 +37,8 @@ jobs:
 
     - name: Install System Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libcurl4-openssl-dev ninja-build
+        sudo apt update
+        sudo apt install -y libcurl4-openssl-dev ninja-build clang lld
 
     - name: Cache FTXUI
       id: cache-ftxui
@@ -57,7 +57,7 @@ jobs:
 
     - name: Configure with Preset
       run: |
-        cmake --preset linux-release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/ftxui-dist
+        cmake --preset=linux-x64-clang-release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/ftxui-dist
 
     - name: Build with Preset
-      run: cmake --build --preset linux-release
+      run: cmake --build --preset=linux-x64-clang-release
