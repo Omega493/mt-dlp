@@ -21,49 +21,53 @@ Unlike standard single-threaded downloaders (like `wget` or browser defaults) wh
 
 ### Building the Project
 
-**1.**  **Clone the Repository:**
-  ```bash
-  git clone https://github.com/Omega493/mt-dlp.git
-  cd mt-dlp
-  ```
+#### Clone the Repository
 
-**2.** **Installing the Dependencies:**
-    * **Windows:**
-    Please make sure `vcpkg` is on your system, and `libcurl` and `ftxui` are available via `vcpkg`. Target the `x64-windows` triplet.
+Run the following to clone the repository.
+```bash
+git clone https://github.com/Omega493/mt-dlp.git
+cd mt-dlp
+```
 
-    * **Linux:**
-    Enter the following commands:
-    ```bash
-    # For all three types of OSes, if you feel like using Clang, replace "gcc g++" with "clang lld".
-    # For Arch-based OSes, you are to just specify those two.
-    # For Debian-based OSes
-    sudo apt update
-    sudo apt install build-essential cmake ninja-build gcc g++ libcurl4-openssl-dev libftxui-dev -y
+#### Installing the Dependencies:
 
-    # For Fedora / RHEL / centOS
-    sudo dnf upgrade --refresh -y
-    sudo dnf install make cmake ninja-build gcc g++ libcurl-devel ftxui-devel -y
+1. **Windows:**
+Please make sure `vcpkg` is on your system, and `libcurl` and `ftxui` are available via `vcpkg`. Target the `x64-windows` triplet.
 
-    # For Arch Linux
-    sudo pacman -Syu --noconfirm
-    sudo pacman -S --needed --noconfirm base-devel cmake ninja curl
+2. **Linux:**
+Enter the following commands:
+```bash
+# For all three types of OSes, if you feel like using Clang, replace "gcc g++" with "clang lld".
+# For Arch-based OSes, you are to just specify those two.
+# For Debian-based OSes
+sudo apt update
+sudo apt install build-essential cmake ninja-build gcc g++ libcurl4-openssl-dev libftxui-dev -y
 
-    WORK_DIR=$(mktemp -d)
-      
-    git clone --depth 1 https://github.com/ArthurSonzogni/FTXUI.git "$WORK_DIR/FTXUI"
+# For Fedora / RHEL / centOS
+sudo dnf upgrade --refresh -y
+sudo dnf install make cmake ninja-build gcc g++ libcurl-devel ftxui-devel -y
 
-    cmake -S "$WORK_DIR/FTXUI" -B "$WORK_DIR/FTXUI/build" \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DFTXUI_BUILD_EXAMPLES=OFF \
-      -DFTXUI_BUILD_DOCS=OFF \
-      -DCMAKE_INSTALL_PREFIX=/usr/local
-        
-    sudo cmake --build "$WORK_DIR/FTXUI/build" --target install
+# For Arch Linux
+sudo pacman -Syu --noconfirm
+sudo pacman -S --needed --noconfirm base-devel cmake ninja curl
 
-    rm -rf $WORK_DIR
-    ```
+WORK_DIR=$(mktemp -d)
+  
+git clone --depth 1 https://github.com/ArthurSonzogni/FTXUI.git "$WORK_DIR/FTXUI"
 
-**3.** **Building it on your System:**
+cmake -S "$WORK_DIR/FTXUI" -B "$WORK_DIR/FTXUI/build" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DFTXUI_BUILD_EXAMPLES=OFF \
+  -DFTXUI_BUILD_DOCS=OFF \
+  -DCMAKE_INSTALL_PREFIX=/usr/local
+
+sudo cmake --build "$WORK_DIR/FTXUI/build" --target install
+
+rm -rf $WORK_DIR
+```
+
+#### Building it on your System:
+
 For Windows, you can open Visual Studio and press Ctrl + Shift + B to build. If you feel like using the terminal, then, open `x64 Native Tools Command Prompt for VS`. Then, navigate to
 wherever you cloned this project at. For Linux, directly navigate to the project folder. You are to then run:
 ```bash
@@ -85,14 +89,15 @@ Examples:
 
 For details on the exact flags being passed, head over to `CMakePresets.json`.
 
-**4.** **Installing it on your System:**
-    * **Windows:**
-    After the build process is over, simply place the executable's path to your system's environment variable.
-    Or, you can manually copy paste `mt-dlp.exe`, `libcurl.dll` and `zlib1.dll` (or `z.dll`) to some different folder and add them to your system's path.
+#### Installing it on your System:
+
+1. **Windows:**
+After the build process is over, simply place the executable's path to your system's environment variable.
+Or, you can manually copy paste `mt-dlp.exe`, `libcurl.dll` and `zlib1.dll` (or `z.dll`) to some different folder and add them to your system's path.
   
-    * **Linux:**
-    Navigate to the folder where the build artifacts are stored. It should be of format `/path/tp/mt-dlp/build/linux/<preset_name>`. Preset name is the same as the one
-    you picked when building the sources. Then, simply run `sudo cp mt-dlp /usr/bin`.
+2. **Linux:**
+Navigate to the folder where the build artifacts are stored. It should be of format `/path/tp/mt-dlp/build/linux/<preset_name>`. Preset name is the same as the one
+you picked when building the sources. Then, simply run `sudo cp mt-dlp /usr/bin`.
 
 ## Usage
 
