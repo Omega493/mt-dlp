@@ -16,7 +16,7 @@ This creates a private discussion visible only to maintainers.
 
 ### Email
 
-Send email to omega493.git@proton.me with:
+Send email to `omega493.git@proton.me` with:
 
 - **Subject**: `[SECURITY] Brief description`
 - **Reproduction steps**: How to trigger the vulnerability

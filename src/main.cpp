@@ -15,262 +15,326 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-// TODO: Refactor this absolute monolith of a file
+#include "include/pch.hpp"
 
-#include <iostream>
-#include <string>
-#include <vector>
-#include <thread>
-#include <memory>
+#define SELENA_ARENA_OVERLOAD_NEW_DELETE
+#define SELENA_ARENA_OVERLOAD_NOTHROW_NEW_DELETE
+#define SELENA_ARENA_OVERLOAD_ALIGNED_NEW_DELETE
+#include "selena/cpp/allocators/static_arena_alloc.hpp"
 
-#include <ftxui/dom/elements.hpp>
-#include <ftxui/screen/screen.hpp>
-#include <ftxui/component/component.hpp>
-#include <ftxui/component/screen_interactive.hpp>
+#include "src/core/downloader/downloader.hpp"
 
-#include "selena/base.hpp"
-#include "selena/utils.hpp"
-#include "src/downloader.hpp"
-#include "src/connection_pool.hpp"
+// #define MT_DLP_REGEX_TEST
+// #define MT_DLP_TEST_LOCAL_DOWNLOAD
 
-int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    std::cerr << "Usage: mt-dlp <url>" << std::endl;
-    return 1;
-  }
+#ifndef MT_DLP_REGEX_TEST
+#include "src/core/ui/ui.hpp"
+#endif // ^^^ MT_DLP_REGEX_TEST ^^^
 
-  const std::string url{ argv[1] };
-  if (!selena::is_valid_url(url)) {
-    std::cerr << "Given URL does not seem to be a valid URL." << std::endl;
-    return 1;
-  }
+#ifdef MT_DLP_REGEX_TEST
+# define I_D_LIKE_TO_TEST_MT_DLP
+# include <fstream>
+# include "selena/cpp/containers/unordered_set.hpp"
+# include "tests/tests.hpp"
+#endif // ^^^ MT_DLP_REGEX_TEST
 
-  constexpr int64_t MIN_MULTIPART_LIM{ 50 * 1024 * 1024 }; // 50 MB
+#ifdef _WIN32
+# define getpid _getpid
+#endif // ^^^ _WIN32 ^^^
 
-  uint32_t curr_threads{ 0 };
+int main(const int argc, const char* const* const argv) {
+  std::signal(SIGINT, [](const int signum_) {
+    char buf_[80]{};
+    const auto x_{
+      std::snprintf(buf_, sizeof(buf_), "\nProcess ID: %d\nSIGINT (external interrupt) sent to program.\n",
+        getpid()
+    ) };
+    stderr_write(buf_);
+    std::_Exit(signum_);
+  });
 
-  while (true) {
-    FileInfo file_info{};
-    try { file_info = Downloader::file_info(url); }
-    catch (const std::exception& e) {
-      std::cerr << "Initialization Error: " << e.what() << std::endl;
+  std::signal(SIGTERM, [](const int signum_) {
+    char buf_[80]{};
+    const auto x_{
+      std::snprintf(buf_, sizeof(buf_), "\nProcess ID: %d\nSIGTERM (termination request) sent to program.\n",
+        getpid()
+    ) };
+    stderr_write(buf_);
+    std::_Exit(signum_);
+  });
+
+#ifdef _WIN32
+# undef getpid
+  LPTOP_LEVEL_EXCEPTION_FILTER prev_handler_{ SetUnhandledExceptionFilter(panic_handler) };
+#elifdef __linux__ // ^^^ _WIN32 / __linux__ vvv
+  struct sigaction signal_action_{};
+  signal_action_.sa_sigaction = panic_handler;
+  signal_action_.sa_flags = SA_SIGINFO;
+  sigemptyset(&signal_action_.sa_mask);
+  sigaction(SIGABRT, &signal_action_, nullptr);
+  sigaction(SIGFPE, &signal_action_, nullptr);
+  sigaction(SIGILL, &signal_action_, nullptr);
+  sigaction(SIGSEGV, &signal_action_, nullptr);
+  // Ignore SIGINT and SIGTERM
+  // SIGINT is initiated by user
+  // SIGTERM is sent to the program
+  // Neither of the two are caused by the program itself
+#endif // ^^^ _WIN32 ^^^
+
+  try {
+#ifndef MT_DLP_REGEX_TEST
+    if (argc < 2) {
+      std::println(
+        stderr,
+        "Usage:\n"
+        "  mt-dlp <URL>"
+      );
       return 1;
     }
 
-    const std::string filename{ Downloader::get_filename(file_info.resolved_url) };
-    std::FILE* const fp{ std::fopen(filename.c_str(), "wb") };
-    if (!fp) { std::perror("File access error"); return 1; }
+    const std::chrono::steady_clock::time_point start{ std::chrono::steady_clock::now() };
 
-    if (!curr_threads)
-      curr_threads = [&file_info]() -> uint32_t {
-        if (!file_info.supports_ranges) return 1;
-        if (file_info.size < MIN_MULTIPART_LIM) return 1;
-        return (std::thread::hardware_concurrency() > 8) ? 8 : 6;
-      }();
+    const std::string url{ argv[1] };
+#endif // ^^^ MT_DLP_REGEX_TEST ^^^
+   
+    static const std::regex url_regex{ mt_dlp::downloader::kUrlRegex };
 
-    std::vector<std::jthread> workers{};
-
-    std::string init_status{};
-    if (!file_info.supports_ranges) init_status = "Ranges not supported. Using single connection.";
-    else if (file_info.size < MIN_MULTIPART_LIM) init_status = "File size <50 MB. Optimization disabled.";
-    else init_status = "Parallel Download: " + std::to_string(curr_threads) + " threads.";
-
-    GlobalStats ui_stats{
-    .filename = filename,
-    .status_text = init_status
-    };
-    ui_stats.workers.resize(curr_threads);
-    std::mutex ui_mtx{};
-
-    ftxui::ScreenInteractive screen{ ftxui::ScreenInteractive::TerminalOutput() };
-
-    // Normal 'bool' may also be used. Let me just use atomic though because why not.
-    std::atomic_bool all_done{ true };
-
-    std::shared_ptr<ftxui::ComponentBase> renderer{ ftxui::Renderer([&] {
-      std::scoped_lock lock{ ui_mtx };
-
-      std::vector<ftxui::Element> worker_elements{};
-      for (const WorkerStats& w : ui_stats.workers) {
-        /*
-        * For individual threads, we define a style of progress bars:
-        * 1. If the download is single-threaded, it gets a solid block of a progress bar
-        * 2. If multi-threaded download:
-        *  a. Even threads get blocks
-        *  b. Odd ones get dimmed out
-        */
-        const ftxui::Decorator gauge_style{ ((ui_stats.workers.size() == 1) || !(w.id & 1)) ?
-          (ftxui::color(ftxui::Color::White)) : (ftxui::color(ftxui::Color::Grey100) | ftxui::dim)};
-  
-        const ftxui::Element status_elem{ [&w]() -> ftxui::Element {
-          if (w.is_done) return ftxui::text(" [DONE]") | ftxui::color(ftxui::Color::Green);
-          else return ftxui::text(" " + w.speed) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 15);
-        }() };
-
-        worker_elements.push_back(
-          ftxui::hbox({
-            ftxui::text(" T-" + std::to_string(w.id)) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 6) | ftxui::color(ftxui::Color::Gold1),
-            ftxui::text(" "),
-            ftxui::gauge(w.progress) | ftxui::flex | gauge_style,
-            status_elem
-          })
-        );
-      }
-
-      return ftxui::window(
-        ftxui::text(" mt-dlp ") | ftxui::bold | ftxui::center,
-        ftxui::vbox({
-          ftxui::text("File: " + ui_stats.filename) | ftxui::bold,
-          ftxui::text(ui_stats.status_text) |
-            (all_done.load() ? ftxui::color(ftxui::Color::Green) : ftxui::color(ftxui::Color::Cyan)),
-          ftxui::separator(),
-          ftxui::vbox({
-            ftxui::hbox({
-              ftxui::text("Total Progress: "),
-              ftxui::text(ui_stats.downloaded_str),
-              all_done.load() ? ftxui::text(" [COMPLETE]") | ftxui::color(ftxui::Color::Green) : ftxui::text(""),
-              ftxui::filler(),
-              all_done.load() ? ftxui::text("") : ftxui::hbox({
-                ftxui::text(ui_stats.total_speed) | ftxui::color(ftxui::Color::Cyan),
-                ftxui::text(" | "),
-                ftxui::text(ui_stats.eta) | ftxui::color(ftxui::Color::Cyan)
-              })
-            }),
-            ftxui::gauge(ui_stats.total_progress) | ftxui::color(ftxui::Color::GreenLight)
-          }) | ftxui::border,
-        ftxui::text("Workers:") | ftxui::bold,
-        ftxui::vbox(std::move(worker_elements)) | ftxui::borderEmpty
-        })
+#ifndef MT_DLP_REGEX_TEST
+    if (!std::regex_match(url, url_regex)) {
+      std::println(
+        stderr,
+        SELENA_STR_COLORS_RED_LIGHT
+        "[mt-dlp] It looks like you provided an invalid URL."
+        SELENA_STR_COLORS_RESET
       );
-    }) }; // 'renderer' lambda
+      return 1;
+    }
+#endif // ^^^ MT_DLP_REGEX_TEST ^^^
 
-    const std::chrono::steady_clock::time_point start_time{ std::chrono::steady_clock::now() };  // Download start time
-    
-    const int64_t chunk_size{ file_info.size / curr_threads };
-    std::vector<std::unique_ptr<DownloadState>> worker_states{};
-    std::mutex file_mtx{};
-    
-    // Calculate number of connections to use (approximately half the number of threads)
-    const size_t num_connections{ (curr_threads + 1) / 2 };
-    ConnectionPool connection_pool{ num_connections };
+#ifdef MT_DLP_REGEX_TEST
+    selena::unordered_set<std::string_view, sizeof(mt_dlp_tests::kTestUrls) / sizeof(std::string_view), 0.75L> regex_test_set;
 
-    for (uint32_t i{ 0 }; i < curr_threads; ++i) {
-      worker_states.push_back(std::make_unique<DownloadState>());
-      const int64_t start{ i * chunk_size };
-      const int64_t end{ (i == curr_threads - 1) ? file_info.size - 1 : (start + chunk_size - 1) };
-      workers.emplace_back([&, i, start, end] {
-        Downloader client{};
-        client.download(file_info.resolved_url, *worker_states[i], fp, file_mtx, &connection_pool, start, end);
-      });
-      std::this_thread::sleep_for(std::chrono::milliseconds{ 50 }); // Small delay to not flood the source server
+    std::ofstream file{ "mt-dlp-regex-tests.txt" };
+
+    if (!file.is_open()) {
+      std::println(
+        stderr,
+        SELENA_STR_COLORS_RED_LIGHT
+        "[mt-dlp tests] Unable to open tests file."
+        SELENA_STR_COLORS_RESET
+      );
+
+      return 1;
     }
 
-    bool retry_requested{ false };
+    int num_true{}, num_false{};
 
-    std::jthread watcher{ [&] {
-      double bps{}; // For smoothing purposes
+    for (const std::string_view& view : mt_dlp_tests::kTestUrls) {
+      if (regex_test_set.contains(view)) {
+        std::println(
+          stderr,
+          SELENA_STR_COLORS_RED_LIGHT
+          "[mt-dlp tests] Assertion failed - URL {} was provided twice.\n"
+          "[mt-dlp tests] Assertion was that every URL must be unique."
+          SELENA_STR_COLORS_RESET,
+          view
+        );
 
-      while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds{ 100 }); // 10 FPS
-
-        all_done.store(true); // Reset 'all_done' to true at the start of every check cycle
-
-        int64_t total_bytes{};
-        double total_bps{};
-
-        GlobalStats temp_stats{
-          .filename = filename,
-          .status_text = ui_stats.status_text
-        };
-
-        for (uint32_t i{ 0 }; i < curr_threads; ++i) {
-          std::scoped_lock lock{ worker_states[i]->mtx };
-
-          if (worker_states[i]->should_retry) {
-            retry_requested = true;
-            temp_stats.status_text = "Server Error (503/429). Throttling detected.";
-            {
-              std::scoped_lock ui_lock{ ui_mtx };
-              ui_stats = std::move(temp_stats);
-            }
-            screen.Post(ftxui::Event::Custom);
-            screen.Exit();
-            return;
-          }
-
-          WorkerStats w_stat{};
-          w_stat.id = i + 1;
-          w_stat.is_done = worker_states[i]->is_done;
-          w_stat.speed = Downloader::format_size(worker_states[i]->curr_speed) + "/s";
-
-          const int64_t w_chunk_size{ (i == curr_threads - 1) ? (file_info.size - (i * chunk_size)) : chunk_size };
-          w_stat.progress = (chunk_size > 0) ? static_cast<double>(worker_states[i]->bytes_downloaded) / w_chunk_size : 0.0;
-
-          temp_stats.workers.push_back(w_stat);
-          total_bytes += worker_states[i]->bytes_downloaded;
-          if (!worker_states[i]->is_done) {
-            total_bps += worker_states[i]->curr_speed;
-            all_done.store(false);
-          }
-        }
-
-        temp_stats.total_progress = (file_info.size > 0) ? static_cast<double>(total_bytes) / file_info.size : 0.0;
-        bps = (bps == 0.0) ? total_bps : (total_bps * 0.3 + bps * 0.7);
-        temp_stats.total_speed = Downloader::format_size(total_bps) + "/s";
-        temp_stats.downloaded_str = Downloader::format_size(static_cast<double>(total_bytes))
-          + " / " + Downloader::format_size(static_cast<double>(file_info.size));
-
-        const int64_t remaining{ file_info.size - total_bytes };
-        const int64_t eta_sec{ (total_bps > 0) ? static_cast<long long>(remaining / bps) : 0 };
-        temp_stats.eta = "ETA: " + Downloader::format_time(eta_sec);
-
-        // We might have a small rounding error at the end.
-        // To make the UI look clean, we must snap the UI to fill the blocks and all.
-        // This shouldn't cause any issues to the file being downloaded though - after all,
-        // if 'all_done' is true, the file download succeeded.
-        // Aka, this one here is just a cosmetic / UX fix.
-        if (all_done.load()) {
-          const std::chrono::steady_clock::time_point end_time{ std::chrono::steady_clock::now() };
-          const int64_t dur{ std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count() };
-          temp_stats.status_text = "Download Complete! Took " + Downloader::format_time(dur);
-          temp_stats.downloaded_str = Downloader::format_size(static_cast<double>(file_info.size))
-            + " / " + Downloader::format_size(static_cast<double>(file_info.size));
-          temp_stats.total_progress = 1.0;
-        }
-
-        {
-          std::scoped_lock lock{ ui_mtx };
-          ui_stats = std::move(temp_stats);
-        }
-
-        screen.Post(ftxui::Event::Custom);
-        if (all_done.load()) break;
-      }
-
-      std::this_thread::sleep_for(std::chrono::seconds{ 3 });
-      screen.Exit();
-    } }; // 'watcher' thread
-
-    screen.Loop(renderer);
-    if (fp) std::fclose(fp);
-    workers.clear();
-
-    if (retry_requested) {
-      if (curr_threads <= 1) {
-        std::cerr << "\n[Error] Download failed: Server is rejecting connections even with 1 thread." << std::endl;
         return 1;
       }
 
-      curr_threads /= 2;
-      if (curr_threads < 1) curr_threads = 1;
+      regex_test_set.insert(view);
 
-      std::cout << "\n[Info] Rate limit detected. Retrying with " << curr_threads << " threads in 3 seconds." << std::endl;
-      std::this_thread::sleep_for(std::chrono::seconds{ 3 });
-      continue;
+      const bool res{ std::regex_match(std::string{ view }, url_regex) };
+
+      file << std::format("{} {}\n", view, res);
+
+      if (res) {
+        ++num_true;
+      } else {
+        ++num_false;
+      }
     }
 
-    break;
-  }
+    std::println("[mt-dlp tests] Num true: {}, Num false: {}", num_true, num_false);
 
-  return 0;
+    return 0;
+#endif // ^^^ MT_DLP_REGEX_TEST ^^^
+
+#ifndef MT_DLP_REGEX_TEST
+
+    mt_dlp::file_info_t file_info;
+
+    try {
+      file_info = mt_dlp::downloader::get_file_metadata(url);
+    } catch (const std::exception& e) {
+      std::println(
+        stderr,
+        SELENA_STR_COLORS_RED_LIGHT
+        "[mt-dlp] Initialization error: {}"
+        SELENA_STR_COLORS_RESET,
+        e.what()
+      );
+      return 1;
+    }
+
+    // An immutable view of the actual struct instant.
+    const mt_dlp::file_info_t& info{ file_info };
+
+    const std::string filename{ info.filename_ };
+
+    std::FILE* fp{ nullptr };
+
+#ifdef _WIN32
+    // As per MSVC, fopen_s is more secure than fopen.
+    if (fopen_s(&fp, filename.c_str(), "wb")) {
+      fp = nullptr;
+    }
+#else // ^^^ _WIN32 / !_WIN32 vvv
+    fp = std::fopen(filename.c_str(), "wb");
+#endif // ^^^ _WIN32 ^^^
+
+    if (!fp) {
+      std::println(
+        stderr,
+        SELENA_STR_COLORS_RED_LIGHT
+        "[mt-dlp] File access error."
+        SELENA_STR_COLORS_RESET
+      );
+      return 1;
+    }
+
+    std::uint32_t num_chunks{ 1 };
+    std::string init_status;
+
+    if (!info.supports_ranges_) {
+      init_status = "Ranges not supported. Using single connection.";
+    } else if (info.size_ < mt_dlp::downloader::kMinMultipartLimit) {
+      init_status = "File size <15 MB. Parallel chunk-based download disabled.";
+    } else {
+      num_chunks = static_cast<std::uint32_t>((info.size_ + mt_dlp::downloader::kChunkSplitSize - 1) / mt_dlp::downloader::kChunkSplitSize);
+      init_status = "Parallel chunk-based download using 4 MiB chunks.";
+    }
+
+    mt_dlp::downloader dl_client{};
+
+    if (info.size_ > 0 && num_chunks > 1) {
+      for (std::uint32_t i{}; i < num_chunks; ++i) {
+        const std::int64_t start{ static_cast<std::int64_t>(i) * mt_dlp::downloader::kChunkSplitSize };
+        const std::int64_t end{ static_cast<std::int64_t>((i == num_chunks - 1) ? (info.size_ - 1) : (start + mt_dlp::downloader::kChunkSplitSize - 1)) };
+
+        dl_client.enqueue_chunk(start, end);
+      }
+    } else {
+      dl_client.enqueue_chunk(0, (info.size_ > 0) ? (info.size_ - 1) : -1);
+    }
+
+    mt_dlp::ui_mgr ui{ filename, info.resolved_url_ };
+    ui.start();
+    dl_client.start(info.resolved_url_, fp);
+
+    while (true) {
+      dl_client.poll();
+      const mt_dlp::download_stats_t stats{ dl_client.get_stats() };
+
+      double progress{};
+
+      if (info.size_ > 0) {
+        progress = static_cast<double>(stats.total_bytes_) / static_cast<double>(info.size_);
+      }
+
+      const std::string speed_str{ mt_dlp::downloader::format_size(stats.curr_speed_) + "/s" };
+      const std::string downloaded_str{
+        mt_dlp::downloader::format_size(static_cast<double>(stats.total_bytes_)) + " / " + mt_dlp::downloader::format_size(static_cast<double>(info.size_))
+      };
+
+      std::string eta_str{ "ETA: --:--:--" };
+
+      if (stats.curr_speed_ > 0.0 && info.size_ > 0) {
+        const std::int64_t remaining_bytes{ info.size_ - stats.total_bytes_ };
+        const std::int64_t eta_sec{ static_cast<std::int64_t>(static_cast<double>(remaining_bytes) / stats.curr_speed_) };
+        eta_str = "ETA: " + mt_dlp::downloader::format_time(eta_sec);
+      }
+
+      std::string current_status{ init_status };
+
+      if (stats.is_done_) {
+        if (!stats.error_msg_.empty()) {
+          current_status = "Error: " + stats.error_msg_;
+        } else {
+          const std::chrono::steady_clock::time_point end{ std::chrono::steady_clock::now() };
+
+          const std::chrono::hh_mm_ss hms{ end - start };
+
+          std::string time_str;
+          time_str.reserve(17);
+
+          const auto hours{ hms.hours().count() };
+          const auto mins{ hms.minutes().count() };
+          const auto secs{ hms.seconds().count() };
+          const auto ms{ std::chrono::duration_cast<std::chrono::milliseconds>(hms.subseconds()).count() };
+
+          if (hours) { time_str += std::format("{}h ", hours); }
+          if (mins) { time_str += std::format("{}min ", mins); }
+
+          if (secs) {
+            time_str += std::format("{}", secs);
+          }
+
+          if (time_str.empty() || !secs) {
+            time_str += std::format("0.{:03}s", ms);
+          } else {
+            time_str += std::format(".{:03}s", ms);
+          }
+
+          current_status = std::format("Download Complete! Took {}.", time_str);
+          progress = 1.0;
+        }
+      }
+
+      ui.update(progress, speed_str, eta_str, current_status, downloaded_str);
+
+#ifdef MT_DLP_TEST_LOCAL_DOWNLOAD
+      static bool run_once{ false };
+
+      if (!run_once) {
+        std::this_thread::sleep_for(std::chrono::seconds{ 2 });
+        run_once = true;
+      }
+#endif // ^^^ MT_DLP_TEST_LOCAL_DOWNLOAD ^^^
+
+      if (stats.is_done_) {
+        break;
+      }
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds{ 2 });
+    ui.stop();
+
+    if (fp) {
+      std::fclose(fp);
+    }
+
+    return 0;
+
+#endif // ^^^ MT_DLP_REGEX_TEST ^^^
+  } catch (const std::exception& e) {
+    std::println(
+      stderr,
+      SELENA_STR_COLORS_RED_LIGHT
+      "[mt-dlp] standard exception thrown: {}"
+      SELENA_STR_COLORS_RESET,
+      e.what()
+    );
+    
+    return 1;
+  } catch (...) {
+    std::println(
+      stderr,
+      SELENA_STR_COLORS_RED_LIGHT
+      "[mt-dlp] unknown exception thrown"
+      SELENA_STR_COLORS_RESET
+    );
+    return 1;
+  }
 }
