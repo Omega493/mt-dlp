@@ -22,7 +22,6 @@
 // or is just not required / a viable option (ex. while working with C APIs).
 // Also, don't panic if "Function definition for 'NO_COPY_MOVE' not found."  or smtg similar occurs.
 // Copy/move is blocked when this is used.
-// IntelliSense does that sometimes.
 #define NO_COPY(ClassName) \
   ClassName(const ClassName&) = delete; \
   ClassName& operator=(const ClassName&) = delete;
@@ -37,12 +36,12 @@
   ClassName(ClassName&&) = delete; \
   ClassName& operator=(ClassName&&) = delete;
 
-#if defined(_MSC_VER)
-  #define NOINLINE __declspec(noinline)
+#ifdef _MSC_VER
+#  define NOINLINE __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
-  #define NOINLINE __attribute__((noinline))
+#  define NOINLINE __attribute__((noinline))
 #else
-  #define NOINLINE
+#  define NOINLINE
 #endif
 
 #endif // SELENA_BASE_HPP

@@ -2,12 +2,18 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "windows-base",
+      "name": "windows-x64-base",
       "hidden": true,
       "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/build/windows/${presetName}",
+      "installDir": "${sourceDir}/install/windows/${presetName}",
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "$env{CMAKE_TOOLCHAIN_FILE}"
+        "CMAKE_TOOLCHAIN_FILE": "$env{CMAKE_TOOLCHAIN_FILE}",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
       },
       "condition": {
         "type": "equals",
@@ -16,80 +22,227 @@
       }
     },
     {
-      "name": "windows-msvc-x64-debug",
-      "displayName": "Windows MSVC x64 Debug",
-      "inherits": "windows-base",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
+      "name": "windows-x64-msvc-debug",
+      "inherits": "windows-x64-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_COMPILER": "cl.exe",
         "CMAKE_CXX_COMPILER": "cl.exe",
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
+        "CMAKE_LINKER": "link.exe"
       }
     },
     {
-      "name": "windows-msvc-x64-release",
-      "displayName": "Windows MSVC x64 Release",
-      "inherits": "windows-msvc-x64-debug",
+      "name": "windows-x64-msvc-release",
+      "inherits": "windows-x64-msvc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELEASE": "/O2 /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_CXX_FLAGS_RELEASE": "/O2 /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "/DEBUG:NONE /OPT:REF /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+      }
+    },
+    {
+      "name": "windows-x64-msvc-relwithdebinfo",
+      "inherits": "windows-x64-msvc-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "/O2 /Zi /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/O2 /Zi /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "/OPT:REF /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+      }
+    },
+    {
+      "name": "windows-x64-clang-debug",
+      "inherits": "windows-x64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang-cl.exe",
+        "CMAKE_CXX_COMPILER": "clang-cl.exe",
+        "CMAKE_LINKER_TYPE": "LLD"
+      }
+    },
+    {
+      "name": "windows-x64-clang-release",
+      "inherits": "windows-x64-clang-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELEASE": "/O2 /clang:-march=native /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_CXX_FLAGS_RELEASE": "/O2 /clang:-march=native /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "/DEBUG:NONE /OPT:REF /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+      }
+    },
+    {
+      "name": "windows-x64-clang-relwithdebinfo",
+      "inherits": "windows-x64-clang-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "/O2 /clang:-march=native /Zi /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/O2 /clang:-march=native /Zi /Gy /Gw /EHsc /fp:precise /guard:cf",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "/OPT:REF /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+      }
+    },
+    {
+      "name": "linux-x64-base",
+      "hidden": true,
+      "generator": "Ninja",
       "architecture": {
         "value": "x64",
         "strategy": "external"
       },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "linux-debug",
-      "displayName": "Linux Debug",
-      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      },
+      "installDir": "${sourceDir}/install/linux/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
-          "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
-        }
       }
     },
     {
-      "name": "linux-release",
-      "displayName": "Linux Release",
-      "inherits": "linux-debug",
+      "name": "linux-x64-gcc-debug",
+      "inherits": "linux-x64-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_LINKER_TYPE": "BFD"
+      }
+    },
+    {
+      "name": "linux-x64-gcc-release",
+      "inherits": "linux-x64-gcc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELEASE": "-O3 -march=native -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -march=native -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-s -pie -fcf-protection=full -z noexecstack -z relro -z now"
+      }
+    },
+    {
+      "name": "linux-x64-gcc-relwithdebinfo",
+      "inherits": "linux-x64-gcc-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O3 -march=native -g -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O3 -march=native -g -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO": "-rdynamic -pie -fcf-protection=full -z noexecstack -z relro -z now"
+      }
+    },
+    {
+      "name": "linux-x64-clang-debug",
+      "inherits": "linux-x64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_LINKER_TYPE": "LLD"
+      }
+    },
+    {
+      "name": "linux-x64-clang-release",
+      "inherits": "linux-x64-clang-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELEASE": "-O3 -march=native -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -march=native -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-s -pie -fcf-protection=full -z noexecstack -z relro -z now"
+      }
+    },
+    {
+      "name": "linux-x64-clang-relwithdebinfo",
+      "inherits": "linux-x64-clang-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O3 -march=native -g -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O3 -march=native -g -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO": "-rdynamic -pie -fcf-protection=full -z noexecstack -z relro -z now"
+      }
+    },
+    {
+      "name": "linux-x64-github-actions",
+      "inherits": "linux-x64-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_LINKER_TYPE": "LLD",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_C_FLAGS_RELEASE": "-O3 -march=x86-64-v3 -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -march=x86-64-v3 -ffunction-sections -funroll-loops -fdata-sections -fPIC -fcf-protection=full",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-s -pie -fcf-protection=full -z noexecstack -z relro -z now"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "windows-msvc-x64-debug",
-      "displayName": "Windows MSVC x64 Debug",
-      "configurePreset": "windows-msvc-x64-debug"
+      "name": "windows-x64-msvc-debug",
+      "displayName": "Windows x64 MSVC Debug",
+      "configurePreset": "windows-x64-msvc-debug"
     },
     {
-      "name": "windows-msvc-x64-release",
-      "displayName": "Windows MSVC x64 Release",
-      "configurePreset": "windows-msvc-x64-release"
+      "name": "windows-x64-msvc-release",
+      "displayName": "Windows x64 MSVC Release",
+      "configurePreset": "windows-x64-msvc-release"
     },
     {
-      "name": "linux-debug",
-      "displayName": "Linux Debug",
-      "configurePreset": "linux-debug"
+      "name": "windows-x64-msvc-relwithdebinfo",
+      "displayName": "Windows x64 MSVC RelWithDebInfo",
+      "configurePreset": "windows-x64-msvc-relwithdebinfo"
     },
     {
-      "name": "linux-release",
-      "displayName": "Linux Release",
-      "configurePreset": "linux-release"
+      "name": "windows-x64-clang-debug",
+      "displayName": "Windows x64 Clang Debug",
+      "configurePreset": "windows-x64-clang-debug"
+    },
+    {
+      "name": "windows-x64-clang-release",
+      "displayName": "Windows x64 Clang Release",
+      "configurePreset": "windows-x64-clang-release"
+    },
+    {
+      "name": "windows-x64-clang-relwithdebinfo",
+      "displayName": "Windows x64 Clang RelWithDebInfo",
+      "configurePreset": "windows-x64-clang-relwithdebinfo"
+    },
+    {
+      "name": "linux-x64-gcc-debug",
+      "displayName": "Linux x64 GCC Debug",
+      "configurePreset": "linux-x64-gcc-debug"
+    },
+    {
+      "name": "linux-x64-gcc-release",
+      "displayName": "Linux x64 GCC Release",
+      "configurePreset": "linux-x64-gcc-release"
+    },
+    {
+      "name": "linux-x64-gcc-relwithdebinfo",
+      "displayName": "Linux x64 GCC RelWithDebInfo",
+      "configurePreset": "linux-x64-gcc-relwithdebinfo"
+    },
+    {
+      "name": "linux-x64-clang-debug",
+      "displayName": "Linux x64 Clang Debug",
+      "configurePreset": "linux-x64-clang-debug"
+    },
+    {
+      "name": "linux-x64-clang-release",
+      "displayName": "Linux x64 Clang Release",
+      "configurePreset": "linux-x64-clang-release"
+    },
+    {
+      "name": "linux-x64-clang-relwithdebinfo",
+      "displayName": "Linux x64 Clang RelWithDebInfo",
+      "configurePreset": "linux-x64-clang-relwithdebinfo"
+    },
+    {
+      "name": "linux-x64-github-actions",
+      "displayName": "Linux x64 GitHub Actions",
+      "configurePreset": "linux-x64-github-actions"
     }
   ]
 }
